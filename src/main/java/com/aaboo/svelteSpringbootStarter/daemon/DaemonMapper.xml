@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.daemon.DaemonMapper">
+
+<!--데몬리스트 조회-->
+<select id="selectDaemonList" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.daemon.DaemonMapper.selectDaemonList */
+	SELECT
+	ROWNUM AS NO
+		, A.*
+		, CASE
+			WHEN (ALERTTIME!='0' AND ELAPSEDTIME>ALERTTIME)
+				OR (JOBGROUP='R' AND ALERTCNT!='0' AND CHECKCNT>ALERTCNT)
+			THEN 1
+			ELSE 0
+		END AS ERRWEBCHK
+	FROM (
+		SELECT 
+			ROWNUM NO,
+			DAEMONTYPE JOBGROUP,
+			DECODE(DAEMONTYPE, 'R', '실시간 자료 처리', 'F', '파일 송수신', DAEMONTYPE) JOBGROUPNAME,
+			DAEMONGROUP,
+			(SELECT CODENAME FROM AB_CODE WHERE CODE = DAEMONGROUP AND GUBUN = 'DAEMONGROUP') DAEMONGROUPNAME,
+			DAEMONCODE JOBCODE,
+			DAEMONNAME JOBNAME,
+			NICKNAME,
+			NVL(TO_CHAR(WORKDATE, 'MM/DD HH24:MI:SS'),'-') JOBENDTIME,
+			NVL(CHECKCNT,0) CHECKCNT,
+			DAEMONSVR,
+			(SELECT CODENAME FROM AB_CODE WHERE CODE = DAEMONSVR AND GUBUN = 'SERVER') DAEMONSVR_,
+			NVL(DAEMONSTATUS,'X') JOBSTATUS,
+			(SELECT CODENAME FROM AB_CODE WHERE CODE = DAEMONSTATUS AND GUBUN = 'DAEMONSTATUS') JOBSTATUSNAME,
+			SUBSTR(DAEMONCMD, 1, INSTR(DAEMONCMD, '/', -1, 1)) DAEMONPATH,
+			DAEMONFILE,
+			DAEMONCODE,
+			NVL(NETIP,'-') NETIP,
+			NVL(NETPORT,'-') NETPORT,
+			ALERTONOFF,
+			ALERTTIME,
+			ALERTCNT,
+			TO_CHAR(SYSDATE, 'MM/DD HH24:MI:SS') REALDATE,
+			NVL(ROUND((SYSDATE - WORKDATE) * 24 * 60), 0) ELAPSEDTIME,
+			NVL(FLOOR((SYSDATE - WORKDATE)), 0) elapsedDD,
+			NVL(FLOOR((SYSDATE - WORKDATE) * 24), 0) - NVL(FLOOR((SYSDATE - WORKDATE)), 0)*24 elapsedHH24,
+			NVL(FLOOR((SYSDATE - WORKDATE) * 24 * 60), 0) - NVL(FLOOR((SYSDATE - WORKDATE) * 24), 0)*60 elapsedMI,
+			USERID,
+			TO_CHAR(CREATED, 'YYYY-MM-DD') CREATED,
+			NVL(MEMO,'-') MEMO
+		FROM AB_DAEMON_LIST A
+		WHERE A.DAEMONTYPE !='D'
+		ORDER BY DAEMONORDER
+	) A
+</select>
+
+<!--데몬리스트별 프로세스 히스토리 조회-->
+<select id="selectDaemonHistory" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.daemon.DaemonMapper.selectDaemonHistory */
+	<![CDATA[
+	SELECT *
+	FROM (
+		select 'idx'||to_char(a.workdate,'yyyymmddhh24miss') PROCODE
+			, a.daemoncode JOBCODE
+			, a.workdate
+			, NVL(a.checkcnt,0) checkcnt
+			, a.checkmsg
+			, a.daemonstatus
+			, b.daemontype
+			, b.daemongroup
+			, c.codename daemonstatusname
+			, ROW_NUMBER() OVER(
+		     	PARTITION BY a.daemoncode
+		     	ORDER BY a.daemoncode, a.workdate desc
+		   ) cnt
+		from ab_daemon_tran a, ab_daemon_list b, ab_code c
+		where a.daemoncode = b.daemoncode
+		and a.daemonstatus = c.code
+		and c.gubun = 'DAEMONSTATUS'
+		and to_char(a.workdate,'yyyymmdd') between to_char(sysdate-10,'yyyymmdd') and to_char(sysdate,'yyyymmdd')
+		ORDER BY A.DAEMONCODE, A.WORKDATE
+	) A
+	WHERE 1=1
+	AND CNT <= #{param.historyCnt}
+	]]>
+</select>
+
+<!--데몬 프로세스 에러 중 담당자 에러확인버튼 클릭 처리-->
+<update id="updateDaemonErr">
+	/* com.aaboo.svelteSpringbootStarter.daemon.DaemonMapper.updateDaemonErr */
+	UPDATE AB_DAEMON_LIST
+	SET ALERTONOFF=#{param.alertonoff}
+		, USERID=#{param.session.userid}
+		, MEMO='에러확인 처리-'||#{param.session.userid}||' '||TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS')
+	WHERE DAEMONCODE=#{param.daemoncode}
+</update>
+
+</mapper>

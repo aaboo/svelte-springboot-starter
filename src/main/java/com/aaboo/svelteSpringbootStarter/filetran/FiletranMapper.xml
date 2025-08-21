@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.filetran.FiletranMapper">
+
+<!--파일송수신 조회 -->
+<select id="selectFiletran" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.filetran.FiletranMapper.selectFiletran */
+	SELECT
+		 B.CODENAME SVRNAME
+		 , DECODE(A.WORKTYPE,'get','수신','put','송신',A.WORKTYPE) WORKTYPE
+		 , A.FILECODE
+		 , A.BATCHNAME
+		 , REPLACE(A.WORKFILE,'YYYYMMDD.dat','') FILEPRE
+		 , A.WORKPATH
+		 , C.WORKDATE
+		 , TO_CHAR(TO_DATE(C.STARTTIME,'YYYYMMDDHH24MISS'),'HH24:MI:SS') STIME
+		 , TO_CHAR(TO_DATE(C.ENDTIME,'YYYYMMDDHH24MISS'),'HH24:MI:SS') ETIME
+		 , SUBSTRB(C.WORKPATH, INSTR(C.WORKPATH,'/',-1)+1) FILENAME
+		 , C.WORKSIZE
+		 , C.RESULTCODE
+		 , C.RESULTMSG
+		 , CASE WHEN NVL(C.RESULTCODE,'X')='X' THEN
+		 		CASE WHEN NVL(C.RESULTMSG,'X')='X' THEN ''
+				ELSE C.RESULTMSG
+				END
+		 	ELSE
+		 		CASE WHEN C.RESULTMSG=NULL THEN '['|| C.RESULTCODE ||']'
+				ELSE '['|| C.RESULTCODE ||'] '|| C.RESULTMSG
+				END
+		 END RESULT
+	 FROM AB_FILE_LIST A
+		 , AB_CODE B
+		 , AB_FILE_TRAN C
+	WHERE A.REMOTESVR = B.CODE
+	AND A.FILECODE = C.FILECODE (+)
+	AND B.GUBUN = 'FILETXSERVER'
+	AND A.WORKSVR = 'TAS_BF'
+	AND C.WORKDATE (+)= #{param.workdate}
+	<if test="param.svrname!=null and !param.svrname.equals('')">
+		AND A.REMOTESVR = #{param.svrname}
+	</if>
+	<if test="param.worktype!=null and !param.worktype.equals('')">
+		AND A.WORKTYPE = #{param.worktype}
+	</if>
+	ORDER BY A.REMOTESVR
+		, NVL(C.STARTTIME, 0) DESC
+
+</select>
+
+</mapper>

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.jobCalendar.JobCalendarMapper">
+
+<!-- 조회 -->
+<select id="selectJobCalendar" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.JobCalendarMapper.selectJobCalendar */
+	SELECT TO_CHAR(TO_DATE(REAL_DAY,'YYYYMMDD'),'YYYYMMDD') workdate
+		, TO_CHAR(TO_DATE(REAL_DAY,'YYYYMMDD'),'DY')  week
+		, NVL(SUM(JOB_TOTCNT), 0)||' / '|| NVL(SUM(PRC_TOTCNT), 0) as total
+		, DECODE(WORK_YN,'N','휴일', DECODE(BANK_WORK_YN,'N','토요일','평일')) hol
+	FROM S_CALENDAR A,
+	(
+		SELECT WORKDATE
+			, SUM(DECODE(JOBSTATUS, 'C', 1, 0)) AS JOB_OKCNT
+			, SUM(1) AS JOB_TOTCNT
+			, 0 AS PRC_OKCNT
+			, 0 AS PRC_TOTCNT
+		FROM AB_JOB_TRAN
+		WHERE WORKDATE BETWEEN #{param.workdate}||'01' AND #{param.workdate}||'31'
+		AND JOBSTATUS NOT IN ('N')
+		GROUP BY WORKDATE
+		UNION ALL
+		SELECT WORKDATE
+			, 0 AS JOB_OKCNT
+			, 0 AS JOB_TOTCNT
+			, SUM(DECODE(PROCSTATUS, 'C', 1, 0)) AS PRC_OKCNT
+			, SUM(1) AS PRC_TOTCNT
+		FROM AB_PROC_TRAN
+		WHERE WORKDATE BETWEEN #{param.workdate}||'01' AND #{param.workdate}||'31'
+		AND   PROCSTATUS NOT IN ('N')
+		GROUP BY WORKDATE
+	) B
+	WHERE A.REAL_DAY = B.WORKDATE (+)
+	<if test="param.workdate!=null and !param.workdate.equals('')">
+		AND A.REAL_DAY like #{param.workdate}||'%'
+	</if>
+	AND A.REAL_DAY BETWEEN #{param.date1} AND #{param.date2}
+	GROUP BY A.REAL_DAY, A.REAL_DATE, DECODE(WORK_YN,'N','휴일', DECODE(BANK_WORK_YN,'N','토요일','평일'))
+	ORDER BY A.REAL_DAY	
+</select>
+
+<!-- 상세조회 -->
+<select id="selectJobCalendarDetail" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.JobCalendarMapper.selectJobCalendarDetail */
+	SELECT A.JOBSVR, B.JOBCODE, A.JOBNAME, A.JOBFILE, B.USERID
+	FROM AB_JOB_LIST A, AB_JOB_TRAN B
+	WHERE 1=1
+	AND B.WORKDATE = #{param.workdate}
+	AND B.JOBSTATUS != 'N'
+	AND B.JOBCODE = A.JOBCODE
+	GROUP BY A.JOBSVR, B.JOBCODE, A.JOBNAME, A.JOBFILE, B.USERID
+</select>
+
+<!-- 배치등록 -->
+<insert id="insertJobCalendar">
+	/* com.aaboo.svelteSpringbootStarter.JobCalendarMapper.insertJobCalendar */
+	{ CALL PROC_AB_MAKE_TRAN(#{param.workdate},#{param.session.userid}) }
+</insert>
+
+</mapper>

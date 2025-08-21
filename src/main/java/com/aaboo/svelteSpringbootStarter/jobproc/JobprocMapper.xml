@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper">
+
+<!-- JOBGROUP 조회 -->
+<select id="selectJobgroup" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	SELECT CODE, CODENAME
+	FROM AB_CODE 
+	WHERE GUBUN = 'JOBGROUP'
+	ORDER BY MEMO
+</select>
+
+<!-- JOB 조회 -->
+<select id="selectJob" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	<choose>
+		<when test="param.log!=null and !param.log.equals('')">
+			/* com.aaboo.svelteSpringbootStarter.jobproc.(for log)JobprocMapper.selectJob */
+		</when>
+		<otherwise>
+			/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.selectJob */
+		</otherwise>
+	</choose>
+	SELECT LPAD(ROWNUM,3,'0') NO
+		, Z.*
+	FROM (
+		SELECT /*+ index(a AB_JOB_TRAN_IDX1, b AB_PROC_TRAN_IDX1, c AB_JOB_LIST_IDX1, d AB_PROC_LIST_IDX1) */
+			a.jobcode, c.jobname
+			, TO_CHAR(TO_DATE(c.cuttime,'MISS'),'MI:SS') AS CUTTIME
+			, TO_CHAR(TO_DATE(c.lasttime,'MISS'),'MI:SS') AS LASTTIME		
+			, NVL(a.workmemo,'') WORKMEMO
+			, c.jobfile
+			, NVL(c.jobmemo,'') JOBMEMO
+			, c.prejob
+			, c.skipflag, c.jobalert, c.runtype, c.joborder JOBORDER
+			, a.workdate, a.inputdate, a.created, a.userid
+		    , c.typekind, e.codename typekindnm
+			, c.jobsvr, f.codename jobsvrnm
+		    , c.workflag, g.codename workflagnm
+			, c.jobgroup, h.codename jobgroupnm
+		    , a.jobstatus, i.codename jobstatusnm
+			, NVL(TO_CHAR(MIN(b.starttime),'hh24:mi:ss'),'-') jobstarttime
+			, NVL(TO_CHAR(MAX(b.endtime),'hh24:mi:ss'),'-') jobendtime
+			, NVL(TO_CHAR(a.reqtime,'hh24:mi:ss'),'-') reqtime
+			, NVL(TO_CHAR(a.chktime,'hh24:mi:ss'),'-') chktime
+			, NVL(c.jobfilepath,'-') jobfilepath
+			, NVL(a.jobchk,'X') jobchk
+			, NVL(a.chkuser,'-') chkuser
+			, NVL(a.ordermemo,'-') ordermemo
+			, SUM(d.worktime) worktime --작업소요시간
+		    , SUM(DECODE(b.procstatus,'C',1,'S',1,0)) cntdone --정상완료(C),SKIP(S)
+		    , SUM(DECODE(b.procstatus,'N',0,1)) cntproc --미실행(N)	
+			, CASE
+				WHEN A.JOBSTATUS IN ('X','H') THEN '대기중'
+				WHEN A.JOBSTATUS IN ('Q','R') THEN '처리중'
+				WHEN A.JOBSTATUS IN ('E') THEN '처리오류'
+				WHEN A.JOBSTATUS = 'C'THEN
+					CASE 
+						WHEN A.JOBCHK = 'O' THEN '작업완료' 
+						ELSE '작업완료' 
+					END
+				WHEN A.JOBSTATUS = 'S' THEN '작업스킵'
+				WHEN A.JOBSTATUS = 'N' THEN '미실행'
+			END AS JOBSTATUSNAME	    
+		FROM ab_job_tran a
+			, ab_proc_tran b
+			, ab_job_list c
+			, ab_proc_list d
+			, ab_code e
+			, ab_code f
+			, ab_code g
+			, ab_code h
+			, ab_code i
+		WHERE a.jobcode = b.jobcode
+		AND a.workdate = b.workdate
+		AND a.jobcode = c.jobcode
+		AND b.proccode = d.proccode
+		AND c.typekind = e.code
+		AND c.jobsvr = f.code
+		AND c.workflag = g.code
+		AND c.jobgroup = h.code
+		AND a.jobstatus = i.code
+		AND a.workdate = #{param.workdate}
+		<if test="param.jobcode!=null and !param.jobcode.equals('')">
+			AND a.jobcode = #{param.jobcode}
+		</if>
+		AND e.gubun = 'TYPEKIND'
+		AND f.gubun = 'SERVER'
+		AND g.gubun = 'WORKFLAG'
+		AND h.gubun = 'JOBGROUP'
+		AND i.gubun = 'JOBSTATUS'
+		GROUP BY
+			a.jobcode, a.joborder, c.jobname
+			, c.cuttime, c.lasttime, a.workmemo
+		    , c.jobfile, c.jobmemo, c.prejob, a.jobchk, a.joborder
+			, c.skipflag, c.jobfilepath, c.workflag, c.jobalert, c.runtype, c.joborder
+		    , c.typekind, e.codename
+			, c.jobsvr, f.codename
+		    , c.workflag, g.codename
+		    , c.jobgroup, h.codename
+		    , a.jobstatus, i.codename
+			, a.workdate, a.inputdate, a.reqtime, a.chktime, a.created, a.userid, a.chkuser, a.ordermemo
+		ORDER BY a.joborder
+	) Z
+</select>
+
+<!-- PROC 조회 -->
+<select id="selectProc" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	<choose>
+		<when test="param.log!=null and !param.log.equals('')">
+			/* com.aaboo.svelteSpringbootStarter.jobproc.(for log)JobprocMapper.selectProc */
+		</when>
+		<otherwise>
+			/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.selectProc */
+		</otherwise>
+	</choose>
+	SELECT
+		DECODE(Z.RN,1,SUM(DECODE(Z.RN,1,1,0)) OVER(PARTITION BY Z.JOBCODE ORDER BY TO_NUMBER(Z.PROCORDER), Z.CREATED),'') AS NO,
+		Z.*
+	FROM (
+		SELECT /*+index(a AB_PROC_TRAN_IDX1, b AB_PROC_LIST_IDX1)*/
+			ROW_NUMBER() OVER(PARTITION BY A.PROCCODE ORDER BY TO_NUMBER(a.procorder), a.created) RN
+			, a.workdate
+			, A.PROCCODE AS PROCCODEORG
+			, A.PROCCODE||'_'||A.ROWID AS PROCCODE
+			, H.JOBFILE
+			, a.jobcode, b.procfile, b.procname, a.skipflag
+			, b.workflag, b.reworkflag, b.worktime
+			, b.typekind, c.codename typekindnm
+			, b.procsvr, d.codename procsvrnm			
+			, a.procstatus
+			, CASE 
+				WHEN A.PROCSTATUS='X' THEN '-'
+				WHEN A.PROCSTATUS='H' THEN '수작업'  
+				WHEN A.PROCSTATUS='Q' THEN '대기중'  
+				WHEN A.PROCSTATUS='R' THEN '처리중'  
+				WHEN A.PROCSTATUS='E' THEN '처리오류'  
+				WHEN A.PROCSTATUS='S' THEN '작업스킵'  
+				WHEN A.PROCSTATUS='N' THEN '미실행'  
+				WHEN A.PROCSTATUS='C' THEN
+					DECODE(A.ERRFLAG
+						,'X','스킵처리'
+						,'E','오류스킵'
+						,'Q','대기중스킵'
+						,'R','처리중스킵'
+						,'N','자료없음'
+						,'H','수작업완료'
+						,'작업완료'
+					)
+				ELSE
+					e.codename 
+				END procstatusnm			
+			, b.runtype, f.codename runtypenm
+			, NVL(a.preproc,'-') preproc
+			, NVL(a.errflag,'-') errflag
+			, NVL(a.inputdate,'-') inputdate
+			, NVL(a.procrun,'-') procrun
+			, NVL(a.procmsg,'-') procmsg
+			, NVL(a.resultcnt,0) resultcnt
+			, NVL(b.proccmd,'-') proccmd
+			, NVL(b.procparam,'-') procparam
+			, NVL(TO_CHAR(a.starttime,'hh24:mi:ss'),'-') starttime
+			, NVL(TO_CHAR(a.endtime,'hh24:mi:ss'),'-') endtime
+			, NVL(TO_CHAR(a.chktime,'yyyy-mm-dd hh24:mi:ss'),'-') chktime
+			, NVL(chkuser, '-') chkuser
+			, TO_CHAR(a.created,'yyyy-mm-dd hh24:mi:ss') created
+			, a.userid
+			, NVL(a.procmemo,'-') procmemo
+			, NVL(b.procmemo,'-') procListMemo
+			, a.procorder
+			, TO_CHAR(a.created,'yyyymmddhh24miss') createid
+			, NVL(a.notice,'-') notice
+			, NVL(a.filestatus,'') as filestatus
+			, NVL(g.codename,'-') as filestatusnm
+			, NVL(TO_CHAR(TO_DATE(a.recvtime,'YYYYMMDDHH24MISS'),'YYYY-MM-DD HH24:MI:SS'),'-') as recvtime
+		FROM ab_proc_tran a
+			, ab_proc_list b
+			, ab_code c
+			, ab_code d
+			, ab_code e
+			, ab_code f
+			, ab_code g
+			, AB_JOB_LIST h
+		WHERE a.proccode = b.proccode
+		AND b.typekind = c.code
+		AND b.procsvr = d.code
+		AND a.procstatus = e.code
+		AND b.runtype = f.code
+		AND a.filestatus = g.code(+)
+		AND A.JOBCODE = H.JOBCODE
+		<if test="param.jobcode!=null and !param.jobcode.equals('')">
+			AND a.jobcode = #{param.jobcode}
+		</if>
+		AND a.workdate = #{param.workdate}
+		AND c.gubun = 'TYPEKIND'
+		AND d.gubun = 'SERVER'
+		AND e.gubun = 'PROCSTATUS'
+		AND f.gubun = 'RUNTYPE'
+		AND g.gubun(+)='FILESTATUS'
+		ORDER BY a.jobcode
+			, TO_NUMBER(a.procorder), RN, a.created
+	) Z
+</select>
+
+
+<!-- 작업일 구분 -->
+<select id="selectDategubun" resultType="String">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.selectDategubun */
+	SELECT DECODE(WORK_YN,'Y'
+			,DECODE(WEEK_NAME,'SAT','토요일','SUN','일요일','평일') --Y
+			,DECODE(WEEK_NAME,'SAT','휴일','SUN','휴일','공휴일') --N
+		) DATEGUBUN
+	FROM S_CALENDAR
+	WHERE REAL_DAY = #{param.workdate}
+</select>
+
+<!-- JOB 작업실행: AB_PROC_TRAN -->
+<update id="updateJobProcQ_abProcTran">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateJobProcQ_abProcTran */
+	UPDATE AB_PROC_TRAN
+	SET PROCSTATUS='Q'
+	WHERE PROCSTATUS IN ('X')
+	AND WORKDATE=#{param.workdate}
+	AND JOBCODE=#{param.jobcode}
+</update>
+
+<!-- JOB 작업실행: AB_JOB_TRAN -->
+<update id="updateJobProcQ_abJobTran">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateJobProcQ_abJobTran */
+	UPDATE AB_JOB_TRAN
+	SET JOBSTATUS='Q'
+		, REQTIME=SYSDATE
+	WHERE JOBSTATUS IN ('X')
+	AND WORKDATE=#{param.workdate}
+	AND JOBCODE=#{param.jobcode}
+</update>
+
+<!-- JOB 결과확인: AB_JOB_TRAN(수작업) -->
+<update id="updateJobProcResultConfirm_abJobTran_H">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateJobProcResultConfirm_abJobTran_H */
+	UPDATE AB_JOB_TRAN
+	SET JOBCHK='O'
+		, CHKUSER=#{param.session.userid}
+		, CHKTIME=SYSDATE
+		, WORKMEMO=#{param.workmemo}			
+		, JOBSTATUS='C'
+	WHERE WORKDATE=#{param.workdate}
+	AND JOBCODE=#{param.jobcode}
+</update>
+
+<!-- JOB 결과확인: AB_PROC_TRAN(수작업) -->
+<update id="updateJobProcResultConfirm_abProcTran_H">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateJobProcResultConfirm_abProcTran_H */
+	UPDATE AB_PROC_TRAN
+	SET CHKUSER=#{param.session.userid}
+		, PROCSTATUS='C'
+		, CHKTIME=SYSDATE	
+		, STARTTIME=NVL(STARTTIME,SYSDATE)
+		, ENDTIME=NVL(ENDTIME,SYSDATE)
+	WHERE WORKDATE=#{param.workdate}
+	AND JOBCODE=#{param.jobcode}
+</update>
+
+<!-- JOB 결과확인: AB_JOB_TRAN(수작업외) -->
+<update id="updateJobProcResultConfirm_abJobTran">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateJobProcResultConfirm_abJobTran */
+	UPDATE AB_JOB_TRAN
+	SET JOBCHK='O'
+		, CHKUSER=#{param.session.userid}
+		, CHKTIME=SYSDATE
+		, WORKMEMO=#{param.workmemo}
+	WHERE WORKDATE=#{param.workdate}
+	AND JOBCODE=#{param.jobcode}
+</update>	
+
+<!-- JOB 작업스킵: AB_JOB_TRAN -->
+<update id="updateJobProcSkip_abJobTran">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateJobProcSkip_abJobTran */
+	UPDATE AB_JOB_TRAN
+	SET JOBSTATUS='S'
+		, JOBCHK='O'
+		, CHKUSER=#{param.session.userid}
+		, WORKMEMO=#{param.workmemo}			
+		, CHKTIME=SYSDATE
+	WHERE WORKDATE=#{param.workdate}
+	AND JOBCODE=#{param.jobcode}
+</update>	
+
+<!-- JOB 작업스킵: AB_PROC_TRAN -->
+<update id="updateJobProcSkip_abProcTran">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateJobProcSkip_abProcTran */
+	UPDATE AB_PROC_TRAN A
+	SET PROCSTATUS='C'
+		, CHKUSER=#{param.session.userid}
+		, ERRFLAG=PROCSTATUS
+		, CHKTIME=SYSDATE	
+		, STARTTIME=SYSDATE
+		, ENDTIME=SYSDATE
+	WHERE WORKDATE=#{param.workdate}
+	AND JOBCODE=#{param.jobcode}
+	AND PROCSTATUS IN ('X','Q','R','E','H')
+</update>	
+	
+<!-- PROC 스킵처리(C-기존procstatus) -->
+<update id="updateProcC">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateProcC */
+	UPDATE ab_proc_tran
+	SET procstatus='C'
+		, chktime=SYSDATE			
+		, chkuser=#{param.session.userid}
+		, procmemo=#{param.comment}
+		, errflag=procstatus
+	WHERE workdate=#{param.workdate}
+	AND proccode=#{param.proccode}
+	AND TO_CHAR(created,'YYYYMMDDHH24MISS')=#{param.createid}
+</update>
+
+<!-- PROC 자료없음(C-N) -->
+<update id="updateProcN">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.updateProcN */
+	UPDATE ab_proc_tran
+	SET procstatus='C'
+		, chktime=SYSDATE			
+		, chkuser=#{param.session.userid}
+		, procmemo=#{param.comment}
+		, procmsg='작업미실행(처리 대상 아님)'
+		, errflag='N'
+	WHERE workdate=#{param.workdate}
+	AND proccode=#{param.proccode}
+	AND TO_CHAR(created,'YYYYMMDDHH24MISS')=#{param.createid}
+</update>
+
+<!-- PROC 재실행(Q-'') -->
+<insert id="insertProcQ">
+	/* com.aaboo.svelteSpringbootStarter.jobproc.JobprocMapper.insertProcQ */
+	INSERT INTO ab_proc_tran(
+		workdate, proccode, jobcode, preproc, skipflag, inputdate, procrun
+		, procorder, procstatus, errflag, procmsg, resultcnt, starttime, endtime
+		, chktime, created, userid, chkuser, procmemo, lastflag
+	)
+	SELECT workdate, proccode, jobcode, preproc, skipflag, inputdate, procrun
+		, procorder, 'Q' , '', '', '', '', ''
+		, '', SYSDATE, #{param.session.userid}, '', '재실행', lastflag
+	FROM (
+		SELECT *
+		FROM ab_proc_tran
+		WHERE workdate = #{param.workdate}
+		AND proccode = #{param.proccode}
+		AND TO_CHAR(created,'YYYYMMDDHH24MISS')=#{param.createid}
+		ORDER BY created DESC
+	)
+	WHERE ROWNUM = 1
+</insert>
+
+<!-- PROC 처리 후 프로시저호출 : ab_proc_tran.lastflag 자동업데이트 -->
+<update id="callProcAbLastflag">
+	/* com.aaboo.svelteSpringbootStarter.JobprocMapper.callProcAbLastflag */
+	{ CALL PROC_AB_LASTFLAG(#{param.workdate},#{param.proccode}) }
+</update>
+
+</mapper>

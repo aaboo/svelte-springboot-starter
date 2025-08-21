@@ -1,0 +1,469 @@
+<?xml version="1.0" encoding="UTF-8" ?>   
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="com.aaboo.svelteSpringbootStarter.user.UserMapper">
+	
+	<!--로그기록-->
+	<insert id="insertUserHistory" statementType="PREPARED">
+		/* com.aaboo.svelteSpringbootStarter.user.UserMapper.insertUserHistory */
+	    INSERT INTO USER_HISTORY (
+			USERID
+			,USEDTIME
+			,LOG_NOTICE
+	    ) VALUES (
+	        #{param.userid}
+	        ,TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS')
+	        ,#{param.logNotice}
+	    )
+	</insert>
+	
+	<!-- 로그인시도 사용자 정보 불러오기 -->
+	<select id="selectLoginUser" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap" parameterType="String" statementType="PREPARED">
+		/* com.aaboo.svelteSpringbootStarter.user.UserMapper.loginUser */
+		SELECT A.USERID, A.GRADE
+			, A.USERNAME
+			, NVL(B.USEREMAIL,'X') AS USEREMAIL
+			, CASE WHEN A.GRADE='D' THEN
+				(
+					SELECT AGENT
+					FROM (
+						SELECT AGENT
+						FROM DEALER
+						WHERE DEALER=(SELECT AGENT FROM USERS WHERE USERID=#{param.userid})
+						UNION ALL
+						SELECT AGENT
+						FROM AGENT
+						WHERE AGENT=(SELECT AGENT FROM USERS WHERE USERID=#{param.userid})
+					)
+					WHERE ROWNUM = 1
+				)
+			 ELSE 
+			 	AGENT
+			 END AGENT
+		FROM USERS A, USERS_DETAIL B
+		WHERE A.USERID = B.USERID
+		AND A.USERID = #{param.userid}
+		AND A.USERPW = #{param.userpw}
+		AND A.GRADE IN ('P','C','D')
+		AND A.DEL IS NULL
+	</select>
+	
+	<!-- 총판의 총판정보 불러오기 -->
+	<select id="getAgentinfoByOagent" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap" parameterType="String" statementType="PREPARED">
+		/* com.aaboo.svelteSpringbootStarter.user.UserMapper.getAgentinfoByOagent */
+		SELECT AGENT OAGENT
+			, AGENTNAME OAGENTNAME
+			, REGEXP_REPLACE(DDD||PHONE,'[^0-9]','') OAGENTPHONE
+			, OWNER OAGENTOWNER
+			, AGENT CAGENT
+			, AGENTNAME CAGENTNAME
+			, REGEXP_REPLACE(DDD||PHONE,'[^0-9]','') CAGENTPHONE
+			, OWNER CAGENTOWNER
+			, NADDRESS1 CAGENTADDRESS1
+			, NADDRESS2 CAGENTADDRESS2
+			, BUSINESSNUMBER CAGENTBUSINESSNUMBER
+		FROM AGENT
+		WHERE AGENT = PARENTAGENT
+		AND AGENT = #{agent, jdbcType=VARCHAR}
+	</select>
+	
+	<!-- 대리점의 총판정보 불러오기 -->
+	<select id="getAgentinfoByCagent" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap" parameterType="String" statementType="PREPARED">
+		/* com.aaboo.svelteSpringbootStarter.user.UserMapper.getAgentinfoByCagent */
+		SELECT B.AGENT OAGENT
+			, B.AGENTNAME OAGENTNAME
+			, REGEXP_REPLACE(B.DDD||B.PHONE,'[^0-9]','') OAGENTPHONE
+			, B.OWNER OAGENTOWNER
+			, A.AGENT CAGENT
+			, A.AGENTNAME CAGENTNAME
+			, REGEXP_REPLACE(A.DDD||A.PHONE,'[^0-9]','') CAGENTPHONE 
+			, A.OWNER CAGENTOWNER
+			, A.NADDRESS1 CAGENTADDRESS1
+			, A.NADDRESS2 CAGENTADDRESS2
+			, A.BUSINESSNUMBER CAGENTBUSINESSNUMBER
+		FROM AGENT A, AGENT B
+		WHERE A.PARENTAGENT = B.AGENT
+		AND A.AGENT = #{agent, jdbcType=VARCHAR}
+	</select>
+	
+	<!-- 딜러의 총판정보 불러오기 -->
+	<select id="getAgentinfoByDealer" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap" parameterType="String" statementType="PREPARED">
+		/* com.aaboo.svelteSpringbootStarter.user.UserMapper.getAgentinfoByDealer */
+		SELECT C.AGENT OAGENT
+			, C.AGENTNAME OAGENTNAME
+			, REGEXP_REPLACE(C.DDD||C.PHONE,'[^0-9]','') OAGENTPHONE
+			, C.OWNER OAGENTOWNER
+			, B.AGENT CAGENT
+			, B.AGENTNAME CAGENTNAME
+			, REGEXP_REPLACE(B.DDD||B.PHONE,'[^0-9]','') CAGENTPHONE
+			, B.OWNER CAGENTOWNER
+			, B.NADDRESS1 CAGENTADDRESS1
+			, B.NADDRESS2 CAGENTADDRESS2
+			, B.BUSINESSNUMBER CAGENTBUSINESSNUMBER
+		FROM (
+			SELECT *
+			FROM (
+				SELECT 1 ORD, AGENT AGENT
+				FROM DEALER
+				WHERE DEALER = #{agent, jdbcType=VARCHAR}
+				UNION
+				SELECT 2 ORD, AGENT
+				FROM AGENT
+				WHERE AGENT = #{agent, jdbcType=VARCHAR}
+				ORDER BY ORD
+			)
+			WHERE ROWNUM=1
+		)A, AGENT B, AGENT C
+		WHERE A.AGENT = B.AGENT
+		AND B.PARENTAGENT = C.AGENT
+	</select>
+	
+	<!-- 단말기 변경이력 저장(공통) -->
+	<insert id="insertSiteHistory" statementType="PREPARED">
+		/* com.aaboo.svelteSpringbootStarter.user.UserMapper.insertSiteHistory */
+		INSERT INTO SITE_HISTORY
+		(
+			SITEID
+			, USERID
+			, UPDATED
+			, CATSERIALNO
+			, BUSINESSNUMBER
+			, MERCHANTNAME
+			, SITENAME
+			, OAGENT
+			, CAGENT
+			, DEALER
+			, PROJECTCODE
+			, INSTALLTYPE
+			, CATTYPE
+			, PHONETYPE
+			, MERCHANTOWNER
+			, ZIPCODE
+			, ADDRESS
+			, PHONE
+			, CELLPHONE
+			, SITEEMAIL
+			, REFRENCE
+			, REFERENCE_BONSA
+			, SALETYPE
+			, DLTYPE
+			, RFTYPE
+			, CASHTYPE
+			, GOTYPE
+			, DUPTYPE
+			, DCCTYPE
+			, VERDOWNDATE
+			, SOFTVER
+			, ICSDOWNDATE
+			, ICSINFO
+			, ICSMALLFLAG
+			, SVCCODE
+			, CASHSVCTYPE
+			, ICSCHKTYPE
+			, ICSCHKPATH
+			, MULTISITEID
+			, AUTO_MERNO
+			, IS_CONSIGN
+			, CORPNUMBER
+			, OWNERBIRTHDAY
+			, OWNEREMAIL
+			, FAXNO
+			, WSERIALNO
+			, WOPENNO
+			, SITEBIZNO
+			, SITEOWNER
+			, SITEDDCFLAG
+			, CROSSCANTYPE
+			, PGFLAG
+		)
+		SELECT
+			SITEID
+			, #{param.session.userid} USERID
+			, SYSDATE UPDATED
+			, CATSERIALNO
+			, BUSINESSNUMBER
+			, MERCHANTNAME
+			, SITENAME
+			, OAGENT
+			, CAGENT
+			, DEALER
+			, PROJECTCODE
+			, INSTALLTYPE
+			, CATTYPE
+			, PHONETYPE
+			, MERCHANTOWNER
+			, ZIPCODE
+			, ADDRESS
+			, PHONE
+			, CELLPHONE
+			, SITEEMAIL
+			, REFRENCE
+			, REFERENCE_BONSA
+			, SALETYPE
+			, DLTYPE
+			, RFTYPE
+			, CASHTYPE
+			, GOTYPE
+			, DUPTYPE
+			, DCCTYPE
+			, VERDOWNDATE
+			, SOFTVER
+			, ICSDOWNDATE
+			, ICSINFO
+			, ICSMALLFLAG
+			, SVCCODE
+			, CASHSVCTYPE
+			, ICSCHKTYPE
+			, ICSCHKPATH
+			, MULTISITEID
+			, AUTO_MERNO
+			, IS_CONSIGN
+			, CORPNUMBER
+			, OWNERBIRTHDAY
+			, OWNEREMAIL
+			, FAXNO
+			, WSERIALNO
+			, WOPENNO
+			, SITEBIZNO
+			, SITEOWNER
+			, SITEDDCFLAG
+			, CROSSCANTYPE
+			, PGFLAG
+		FROM
+			(
+				SELECT
+					A.SITEID
+					, A.CATSERIALNO
+					, A.BUSINESSNUMBER
+					, B.MERCHANTNAME
+					, A.SITENAME
+					, F_AGENT(A.AGENTCODE, 3) OAGENT
+					, A.AGENTCODE CAGENT
+					, A.DEALCODE DEALER
+					, A.PROJECTCODE
+					, DECODE(A.INSTALLTYPE, '3', '6', A.INSTALLTYPE) INSTALLTYPE
+					, A.CATTYPE
+					, A.PHONETYPE
+					, B.MERCHANTOWNER
+					, A.ZIPCODE
+					, NVL(TRIM(A.NADDRESS1) || ' ' || TRIM(A.NADDRESS2), TRIM(A.SITEADDRESS)) ADDRESS
+					, REGEXP_REPLACE(A.DDD || A.PHONENO || A.PHONENO2, '[^0-9]', '') PHONE
+					, REGEXP_REPLACE(A.CELLPHONE, '[^0-9]', '') CELLPHONE
+					, TRIM(A.SITEEMAIL) SITEEMAIL
+					, A.REFRENCE
+					, A.REFERENCE_BONSA
+					, A.SALETYPE
+					, A.DLTYPE
+					, A.RFTYPE
+					, B.CASHTYPE
+					, A.GOTYPE
+					, A.DUPTYPE
+					, A.DCCTYPE
+					, A.VERDOWNDATE
+					, A.SOFTVER
+					, A.ICSDOWNDATE
+					, A.ICSINFO
+					, A.ICSMALLFLAG
+					, A.SVCCODE
+					, A.CASHSVCTYPE
+					, A.ICSCHKTYPE
+					, A.ICSCHKPATH
+					, A.MULTISITEID
+					, NVL(B.AUTO_MERNO, 'O') AUTO_MERNO
+					, NVL(B.IS_CONSIGN, '0') IS_CONSIGN
+					, B.CORPNUMBER 
+					, B.OWNERBIRTHDAY
+					, B.OWNEREMAIL
+					, REGEXP_REPLACE(A.FAXNO, '[^0-9]', '') FAXNO
+					, C.SERIALNO WSERIALNO
+					, C.OPENNO WOPENNO
+					, A.SITEBIZNO
+					, A.SITEOWNER
+					, A.SITEDDCFLAG
+					, B.CROSSCANTYPE
+					, A.PGFLAG
+				FROM SITE A, MERCHANT B, SITE_WIRELESS C
+				WHERE
+					A.BUSINESSNUMBER = B.BUSINESSNUMBER
+					AND A.SITEID = C.SITEID(+)
+					<choose>
+						<!-- SMoveService.updateSiteMoveBonsa : 단말기 이관 -->
+						<when test="param.searchChk != null and param.searchChk.equalsIgnoreCase('S') and param.items != null">
+							AND A.SITEID IN
+								<foreach collection="param.items" item="item" open="(" separator="," close=")">
+									#{item}
+								</foreach>
+						</when>
+						<when test="param.searchChk != null and param.searchChk.equalsIgnoreCase('A') and param.newDealer != null and param.newCagent != null">
+							AND A.SITEID IN (SELECT SITEID FROM SITE WHERE AGENTCODE = #{param.newCagent} AND DEALCODE = #{param.newDealer})
+						</when>
+						<!-- VanOdsService.chkFileP : POS 교차취소 요청서 API -->
+						<when test="param.businessnumber != null and !param.businessnumber.equalsIgnoreCase('')">
+							AND A.BUSINESSNUMBER = #{param.businessnumber}
+						</when>
+						<!-- 
+							그 외 일반: 가맹점등록조회, 단말기변경이력 업데이트 등
+							SBizReqService.updateBizReq : 본사업무요청
+							SSiteHistoryService.updateSiteHistory : 단말기변경이력
+						-->
+						<otherwise>
+							AND A.BUSINESSNUMBER IN (SELECT BUSINESSNUMBER FROM SITE WHERE SITEID = #{param.siteid})
+						</otherwise>
+					</choose>
+				MINUS
+				SELECT
+					SITEID
+					, CATSERIALNO
+					, BUSINESSNUMBER
+					, MERCHANTNAME
+					, SITENAME
+					, OAGENT
+					, CAGENT
+					, DEALER
+					, PROJECTCODE
+					, INSTALLTYPE
+					, CATTYPE
+					, PHONETYPE
+					, MERCHANTOWNER
+					, ZIPCODE
+					, ADDRESS
+					, PHONE
+					, CELLPHONE
+					, SITEEMAIL
+					, REFRENCE
+					, REFERENCE_BONSA
+					, SALETYPE
+					, DLTYPE
+					, RFTYPE
+					, CASHTYPE
+					, GOTYPE
+					, DUPTYPE
+					, DCCTYPE
+					, VERDOWNDATE
+					, SOFTVER
+					, ICSDOWNDATE
+					, ICSINFO
+					, ICSMALLFLAG
+					, SVCCODE
+					, CASHSVCTYPE
+					, ICSCHKTYPE
+					, ICSCHKPATH
+					, MULTISITEID
+					, NVL(AUTO_MERNO, 'O') AUTO_MERNO
+					, NVL(IS_CONSIGN, '0') IS_CONSIGN
+					, CORPNUMBER
+					, OWNERBIRTHDAY
+					, OWNEREMAIL
+					, FAXNO
+					, WSERIALNO
+					, WOPENNO
+					, SITEBIZNO
+					, SITEOWNER
+					, SITEDDCFLAG
+					, CROSSCANTYPE
+					, PGFLAG
+				FROM
+					(
+						SELECT
+							C.SITEID
+							, C.CATSERIALNO
+							, C.BUSINESSNUMBER
+							, C.MERCHANTNAME
+							, C.SITENAME
+							, C.OAGENT
+							, C.CAGENT
+							, C.DEALER
+							, C.PROJECTCODE
+							, C.INSTALLTYPE
+							, C.CATTYPE
+							, C.PHONETYPE
+							, C.MERCHANTOWNER
+							, C.ZIPCODE
+							, C.ADDRESS
+							, C.PHONE
+							, C.CELLPHONE
+							, C.SITEEMAIL
+							, C.REFRENCE
+							, C.REFERENCE_BONSA
+							, C.SALETYPE
+							, C.DLTYPE
+							, C.RFTYPE
+							, C.CASHTYPE
+							, C.GOTYPE
+							, C.DUPTYPE
+							, C.DCCTYPE
+							, C.VERDOWNDATE
+							, C.SOFTVER
+							, C.ICSDOWNDATE
+							, C.ICSINFO
+							, C.ICSMALLFLAG
+							, C.SVCCODE
+							, C.CASHSVCTYPE
+							, C.ICSCHKTYPE
+							, C.ICSCHKPATH
+							, C.MULTISITEID
+							, C.AUTO_MERNO
+							, C.IS_CONSIGN
+							, C.CORPNUMBER
+							, C.OWNERBIRTHDAY
+							, C.OWNEREMAIL
+							, C.FAXNO
+							, C.WSERIALNO
+							, C.WOPENNO
+							, C.SITEBIZNO
+							, C.SITEOWNER
+							, C.SITEDDCFLAG
+							, C.CROSSCANTYPE
+							, C.PGFLAG
+							, RANK () OVER (PARTITION BY C.SITEID ORDER BY C.UPDATED DESC) RNK
+						FROM SITE A, MERCHANT B, SITE_HISTORY C
+						WHERE
+							A.BUSINESSNUMBER = B.BUSINESSNUMBER
+							AND A.SITEID = C.SITEID(+)
+							<choose>
+								<!-- SMoveService.updateSiteMoveBonsa : 단말기 이관 -->
+								<when test="param.searchChk != null and param.searchChk.equalsIgnoreCase('S') and param.items != null">
+									AND A.SITEID IN
+										<foreach collection="param.items" item="item" open="(" separator="," close=")">
+											#{item}
+										</foreach>
+								</when>
+								<when test="param.searchChk != null and param.searchChk.equalsIgnoreCase('A') and param.newDealer != null and param.newCagent != null">
+									AND A.SITEID IN (SELECT SITEID FROM SITE WHERE AGENTCODE = #{param.newCagent} AND DEALCODE = #{param.newDealer})
+								</when>
+								<!-- VanOdsService.chkFileP : POS 교차취소 요청서 API -->
+								<when test="param.businessnumber != null and !param.businessnumber.equalsIgnoreCase('')">
+									AND A.BUSINESSNUMBER = #{param.businessnumber}
+								</when>
+								<!-- 
+									그 외 일반: 가맹점등록조회, 단말기변경이력 업데이트 등
+									SBizReqService.updateBizReq : 본사업무요청
+									SSiteHistoryService.updateSiteHistory : 단말기변경이력
+								-->
+								<otherwise>
+									AND A.BUSINESSNUMBER IN (SELECT BUSINESSNUMBER FROM SITE WHERE SITEID = #{param.siteid})
+								</otherwise>
+							</choose>
+					)
+				WHERE RNK = 1
+			)
+	</insert>
+    	
+	<!-- //USER_SVC_HISTORY 로그저장 -->
+	<insert id="insertUserSvcHistory" statementType="PREPARED">
+		/* com.aaboo.svelteSpringbootStarter.user.UserMapper.insertUserSvcHistory */
+		INSERT INTO USER_SVC_HISTORY ( 
+			USERID, USEDTIME, SERVICE_TYPE, SERVICE_ID, SERVICE_OPERATION
+			, MENU_TYPE
+			, LOG_NOTICE
+			, USERIP, GUBUN, DOWNMEMO
+		) VALUES (
+			#{param.userid}, SYSTIMESTAMP, 'VOP', #{param.serviceId}, #{param.serviceOperation}
+			, SUBSTRB(#{param.menuType, jdbcType=VARCHAR},0,50)
+			, SUBSTRB(#{param.logNotice, jdbcType=VARCHAR},0,4000)
+			, #{param.userip}, #{param.gubun}, #{param.downMemo, jdbcType=VARCHAR}
+		)
+	</insert>
+</mapper>

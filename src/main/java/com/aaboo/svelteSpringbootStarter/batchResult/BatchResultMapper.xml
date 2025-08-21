@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.batchResult.BatchResultMapper">
+
+<!-- JOB 조회(배치처리결과) -->
+<select id="selectJob" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.batchResult.BatchResultMapper.selectJob */
+	SELECT LPAD(ROWNUM,3,'0') NO
+		, Z.*
+	FROM (
+		SELECT /*+ index(a AB_JOB_TRAN_IDX1, b AB_PROC_TRAN_IDX1, c AB_JOB_LIST_IDX1, d AB_PROC_LIST_IDX1) */
+			a.jobcode, c.jobname
+			, TO_CHAR(TO_DATE(c.cuttime,'MISS'),'MI:SS') AS CUTTIME
+			, TO_CHAR(TO_DATE(c.lasttime,'MISS'),'MI:SS') AS LASTTIME		
+			, NVL(a.workmemo,'') WORKMEMO
+			, c.jobfile
+			, NVL(c.jobmemo,'') JOBMEMO
+			, c.prejob
+			, c.skipflag, c.jobalert, c.runtype, c.joborder JOBORDER
+			, a.workdate, a.inputdate, a.created, a.userid
+		    , c.typekind, e.codename typekindnm
+			, c.jobsvr, f.codename jobsvrnm
+		    , c.workflag, g.codename workflagnm
+			, c.jobgroup, h.codename jobgroupnm
+		    , a.jobstatus, i.codename jobstatusnm
+			, NVL(TO_CHAR(MIN(b.starttime),'hh24:mi:ss'),'-') jobstarttime
+			, NVL(TO_CHAR(MAX(b.endtime),'hh24:mi:ss'),'-') jobendtime
+			, NVL(TO_CHAR(a.reqtime,'hh24:mi:ss'),'-') reqtime
+			, NVL(TO_CHAR(a.chktime,'hh24:mi:ss'),'-') chktime
+			, NVL(c.jobfilepath,'-') jobfilepath
+			, NVL(a.jobchk,'X') jobchk
+			, NVL(a.chkuser,'-') chkuser
+			, NVL(a.ordermemo,'-') ordermemo
+			, SUM(d.worktime) worktime --작업소요시간
+		    , SUM(DECODE(b.procstatus,'C',1,'S',1,0)) cntdone --정상완료(C),SKIP(S)
+		    , SUM(DECODE(b.procstatus,'N',0,1)) cntproc --미실행(N)	
+			, CASE
+				WHEN A.JOBSTATUS IN ('X','H') THEN '대기중'
+				WHEN A.JOBSTATUS IN ('Q','R') THEN '처리중'
+				WHEN A.JOBSTATUS IN ('E') THEN '처리오류'
+				WHEN A.JOBSTATUS = 'C'THEN
+					CASE 
+						WHEN A.JOBCHK = 'O' THEN '작업완료' 
+						ELSE '작업완료' 
+					END
+				WHEN A.JOBSTATUS = 'S' THEN '작업스킵'
+				WHEN A.JOBSTATUS = 'N' THEN '미실행'
+			END AS JOBSTATUSNAME	    
+		FROM ab_job_tran a
+			, ab_proc_tran b
+			, ab_job_list c
+			, ab_proc_list d
+			, ab_code e
+			, ab_code f
+			, ab_code g
+			, ab_code h
+			, ab_code i
+		WHERE a.jobcode = b.jobcode
+		AND a.workdate = b.workdate
+		AND a.jobcode = c.jobcode
+		AND b.proccode = d.proccode
+		AND c.typekind = e.code
+		AND c.jobsvr = f.code
+		AND c.workflag = g.code
+		AND c.jobgroup = h.code
+		AND a.jobstatus = i.code
+		AND a.workdate = #{param.workdate}
+		AND e.gubun = 'TYPEKIND'
+		AND f.gubun = 'SERVER'
+		AND g.gubun = 'WORKFLAG'
+		AND h.gubun = 'JOBGROUP'
+		AND i.gubun = 'JOBSTATUS'
+		GROUP BY
+			a.jobcode, a.joborder, c.jobname
+			, c.cuttime, c.lasttime, a.workmemo
+		    , c.jobfile, c.jobmemo, c.prejob, a.jobchk, a.joborder
+			, c.skipflag, c.jobfilepath, c.workflag, c.jobalert, c.runtype, c.joborder
+		    , c.typekind, e.codename
+			, c.jobsvr, f.codename
+		    , c.workflag, g.codename
+		    , c.jobgroup, h.codename
+		    , a.jobstatus, i.codename
+			, a.workdate, a.inputdate, a.reqtime, a.chktime, a.created, a.userid, a.chkuser, a.ordermemo
+		ORDER BY DECODE(JOBGROUP,'PS',1,'PR',2,'DS',3,'DR',4,'ET',5,6), A.JOBORDER
+	) Z
+</select>
+
+<!-- PROC 조회(프로세스 처리결과) -->
+<select id="selectProc" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.batchResult.BatchResultMapper.selectProc */
+	SELECT /*+index(a AB_PROC_TRAN_IDX1, b AB_PROC_LIST_IDX1)*/
+		ROW_NUMBER() OVER(PARTITION BY A.PROCCODE ORDER BY TO_NUMBER(a.procorder), a.created) RN
+		, a.workdate
+		, A.PROCCODE AS PROCCODEORG
+		, A.PROCCODE||'_'||A.ROWID AS PROCCODE
+		, H.JOBFILE
+		, a.jobcode, b.procfile, b.procname, a.skipflag
+		, b.workflag, b.reworkflag, b.worktime
+		, b.typekind, c.codename typekindnm
+		, b.procsvr, d.codename procsvrnm			
+		, a.procstatus
+		, CASE 
+			WHEN A.PROCSTATUS='X' THEN '-'
+			WHEN A.PROCSTATUS='H' THEN '수작업'  
+			WHEN A.PROCSTATUS='Q' THEN '대기중'  
+			WHEN A.PROCSTATUS='R' THEN '처리중'  
+			WHEN A.PROCSTATUS='E' THEN '처리오류'  
+			WHEN A.PROCSTATUS='S' THEN '작업스킵'  
+			WHEN A.PROCSTATUS='N' THEN '미실행'  
+			WHEN A.PROCSTATUS='C' THEN
+				DECODE(A.ERRFLAG
+					,'X','스킵처리'
+					,'E','오류스킵'
+					,'Q','대기중스킵'
+					,'R','처리중스킵'
+					,'N','자료없음'
+					,'H','수작업완료'
+					,'작업완료'
+				)
+			ELSE
+				e.codename 
+			END procstatusnm			
+		, b.runtype, f.codename runtypenm
+		, NVL(a.preproc,'-') preproc
+		, NVL(a.errflag,'-') errflag
+		, NVL(a.inputdate,'-') inputdate
+		, NVL(a.procrun,'-') procrun
+		, NVL(a.procmsg,'-') procmsg
+		, NVL(a.resultcnt,0) resultcnt
+		, NVL(b.proccmd,'-') proccmd
+		, NVL(b.procparam,'-') procparam
+		, NVL(TO_CHAR(a.starttime,'hh24:mi:ss'),'-') starttime
+		, NVL(TO_CHAR(a.endtime,'hh24:mi:ss'),'-') endtime
+		, NVL(TO_CHAR(a.chktime,'yyyy-mm-dd hh24:mi:ss'),'-') chktime
+		, NVL(chkuser, '-') chkuser
+		, TO_CHAR(a.created,'yyyy-mm-dd hh24:mi:ss') created
+		, a.userid
+		, NVL(a.procmemo,'-') procmemo
+		, NVL(b.procmemo,'-') procListMemo
+		, a.procorder
+		, TO_CHAR(a.created,'yyyymmddhh24miss') createid
+		, NVL(a.notice,'-') notice
+		, NVL(a.filestatus,'') as filestatus
+		, NVL(g.codename,'-') as filestatusnm
+		, NVL(TO_CHAR(TO_DATE(a.recvtime,'YYYYMMDDHH24MISS'),'YYYY-MM-DD HH24:MI:SS'),'-') as recvtime
+	FROM ab_proc_tran a
+		, ab_proc_list b
+		, ab_code c
+		, ab_code d
+		, ab_code e
+		, ab_code f
+		, ab_code g
+		, AB_JOB_LIST h
+	WHERE a.proccode = b.proccode
+	AND b.typekind = c.code
+	AND b.procsvr = d.code
+	AND a.procstatus = e.code
+	AND b.runtype = f.code
+	AND a.filestatus = g.code(+)
+	AND A.JOBCODE = H.JOBCODE
+	AND a.workdate = #{param.workdate}
+	AND c.gubun = 'TYPEKIND'
+	AND d.gubun = 'SERVER'
+	AND e.gubun = 'PROCSTATUS'
+	AND f.gubun = 'RUNTYPE'
+	AND g.gubun(+)='FILESTATUS'
+	ORDER BY A.STARTTIME
+</select>
+
+</mapper>
