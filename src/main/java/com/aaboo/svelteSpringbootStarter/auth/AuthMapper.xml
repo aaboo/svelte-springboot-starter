@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.auth.AuthMapper">
+
+<!-- 로그인 -->
+<select id="selectUserCheck" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.auth.AuthMapper.selectUserCheck */
+	SELECT
+		A.USERID
+		, A.USERPW
+		, A.USERNAME
+		, A.BUSINESSNUMBER
+	   	, A.GRADE
+	   	, LISTAGG(B.GRP_AUTH_CD,',') WITHIN GROUP (ORDER BY B.GRP_AUTH_CD) AS AUTH
+		, C.LOGINAUTHKEY
+	FROM USERS A, USER_AUTH_M B, USER_LOGIN_INFO C
+	WHERE A.USERID = #{param.userid}
+	AND A.USERID = B.USER_CD
+	AND A.USERID = C.USERID(+) 
+	AND A.GRADE = 'G'		
+	AND A.DEL IS NULL
+	AND B.GRP_AUTH_CD IN ('G0001','G1001','G2001','G3001','G5001')
+	AND NVL(B.USE_YN,'N') = 'Y'		
+	AND C.APPCODE(+) = 'VOP'
+	GROUP BY A.USERID
+		, A.USERPW
+		, A.USERNAME
+		, A.BUSINESSNUMBER
+	   	, A.GRADE
+	   	, C.LOGINAUTHKEY	
+</select>
+
+<!-- LOGINAUTHKEY 조회 -->
+<select id="selectLoginAuthKey" resultType="String">
+	/* com.aaboo.svelteSpringbootStarter.auth.AuthMapper.selectLoginAuthKey */
+    SELECT LOGINAUTHKEY
+	FROM USER_LOGIN_INFO
+	WHERE APPCODE = 'VOP'
+	AND USERID = #{param.session.userid}
+</select>
+
+<!-- 로그인 정상 업데이트 -->
+<update id="updateUserLoginInfo">
+	/* com.aaboo.svelteSpringbootStarter.auth.AuthMapper.updateUserLoginInfo */
+	MERGE 
+		INTO USER_LOGIN_INFO
+		USING DUAL
+	ON (
+		APPCODE = 'VOP'
+		AND USERID = #{param.userid}
+	)
+	WHEN MATCHED THEN
+		UPDATE SET
+		USERIP = #{param.userip}
+		, LOGINAUTHKEY = #{param.loginAuthKey}
+		, LOGINTIME = SYSDATE
+	WHEN NOT MATCHED THEN
+		INSERT (
+			USERID, APPCODE, LOGINTIME, LOGINAUTHKEY, USERIP
+		) VALUES (
+			#{param.userid}, 'VOP', SYSDATE, #{param.loginAuthKey}, #{param.userip}
+		)
+</update>
+
+<!-- 로그아웃 처리 -->
+<update id="updateUserLoginInfoLogout">
+	/* com.aaboo.svelteSpringbootStarter.auth.AuthMapper.updateUserLoginInfoLogout */
+	UPDATE USER_LOGIN_INFO
+	SET LOGINAUTHKEY = NULL
+		, LOGOUTTIME = SYSDATE
+	WHERE APPCODE='VOP'
+	AND USERID=#{param.session.userid}
+</update>
+
+
+</mapper>
