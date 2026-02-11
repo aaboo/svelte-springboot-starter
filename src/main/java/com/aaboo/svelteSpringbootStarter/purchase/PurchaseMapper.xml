@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.purchase.PurchaseMapper">
+
+<!-- 매입처리 조회 -->
+<select id="selectPurchase" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.purchase.PurchaseMapper.selectPurchase */
+	SELECT
+		DECODE(A.DDCFLAG, 'I', 'EDI', 'D', 'DDC', 'S', 'DESC', 'F', 'DIF', A.DDCFLAG) ptype,
+		F_BANK(A.ACQUIER) acquier,
+		A.JOBNAME fileType,
+		A.APP_PATH filePath,
+		A.VOS_PATH vosPath,
+		DECODE(NVL(B.FILETYPE,' '), 'SEND', '매입요청', 'RECV', '매입결과', NVL(B.FILETYPE,' ')) resultType,
+		NVL(B.FILE_SIZE, '') fileSize,
+		NVL(B.LINE_CNT, '') lineCount,
+		NVL(B.MERNO_CNT, '') merchantCount,
+		NVL(B.DATA_CNT, '') dataCount,
+		NVL(B.CREATED, '') makeDate,
+		NVL(B.VOS_FILENAME, '') vosfileName,
+		NVL(B.VOS_RESPCODE, '') vosCheck,
+		NVL(B.VOS_SENDTIME, '') vossendTime
+	FROM PUR_FILE_INFO A, PUR_SETTLE_FILE B
+	WHERE 1=1
+	AND A.DDCFLAG = B.DDCFLAG (+)
+	AND A.JOBFLAG = B.JOBFLAG (+)
+	AND A.FICODE = B.FICODE (+)
+	AND A.DDCFLAG IN ('I','D','S','F')
+	AND B.MAKEDATE (+)= #{param.makedate}
+	AND B.FILETYPE (+)= 'SEND'
+	ORDER BY A.FICODE, A.VOS_JOBFLAG
+</select>
+
+</mapper>

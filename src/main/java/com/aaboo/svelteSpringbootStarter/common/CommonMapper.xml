@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.aaboo.svelteSpringbootStarter.common.CommonMapper">
+
+<!-- 작업일 구분 -->
+<select id="selectDategubun" resultType="String">
+	/* com.aaboo.svelteSpringbootStarter.common.CommonMapper.selectDategubun */
+	SELECT DECODE(work_yn,'Y'
+			,DECODE(week_name,'SAT','토요일','SUN','일요일','평일') --Y
+			,DECODE(week_name,'SAT','휴일','SUN','휴일','공휴일') --N
+		) dategubun
+	FROM s_calendar
+	WHERE real_day = #{param.workdate}
+</select>
+
+<!-- 파일송수신 기관 불러오기(TOAST-UI SELECT-BOX) -->
+<select id="selectFiletxserver" resultType="com.aaboo.svelteSpringbootStarter.common.JtMap">
+	/* com.aaboo.svelteSpringbootStarter.common.CommonMapper.selectFiletxserver */
+	SELECT CODE AS VALUE
+		, CODENAME AS LABEL
+	FROM AB_CODE
+	WHERE GUBUN='FILETXSERVER'
+	ORDER BY CODE
+</select>
+
+</mapper>
