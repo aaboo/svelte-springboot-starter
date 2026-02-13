@@ -85,7 +85,7 @@ public class Utils {
 			//세션객체
 			Cookie cookie = SessionUtils.getCookie(request);
 			if(cookie!=null) {
-				String encCookie = cookie.getValue();
+				String encCookie = cookie.getValue().substring(9);
 				String decCookie = aes256.decode(encCookie);
 				//logger.info(decCookie);
 				params.put("session", gson.fromJson(decCookie, HashMap.class));

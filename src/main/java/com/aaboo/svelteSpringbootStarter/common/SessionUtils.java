@@ -5,6 +5,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,18 +41,32 @@ public class SessionUtils {
 	protected static final String SavedCookieID = serviceName +"_savedID";
 
 	//쿠키 유효성 검사
-	@SuppressWarnings({ "unchecked", "unlikely-arg-type" })
+	@SuppressWarnings({ "unchecked" })
 	public static Boolean check(HttpServletRequest req, HttpServletResponse res) throws Exception{
 		
 		Boolean result = true;
 		
 		//request
-		Map<String,Object> param = Utils.getRequestData(req);
+		Map<String,Object> param = Utils.getRequestData(req);		
+		
+		//사용자 정보
+		String userid = null;
+		String username = null;
+		String grade = null;
+		String auth = null;
+		String userip = null;
+		String useragent = null;
+		String sessionid = null;
+		String loginAuthKey = null;
+		String ckey = null;
 		
 		//쿠키 복호화
 		Cookie cookie = Utils.getCookie(req, serviceName);
 		if(cookie!=null) {
-			String sysCookie = cookie.getValue();		
+			String cookieValue = cookie.getValue();
+			String sysCookie_cKey = cookieValue.substring(0,8);
+			String sysCookie = cookieValue.substring(9);
+			
 			//logger.info("cookie check = {}", sysCookie);		
 			if(sysCookie==null) {
 				logger.info("--01");
@@ -61,52 +76,32 @@ public class SessionUtils {
 			Map<String,String> sysCookieObj = gson.fromJson(Utils.aes256.decode(sysCookie), HashMap.class);//쿠키 복호화
 			
 			//사용자정보
-			String userid = sysCookieObj.get("userid").toString();
-			String grade = sysCookieObj.get("grade").toString();
-			String auth = sysCookieObj.get("auth").toString();
+			userid = sysCookieObj.get("userid").toString();
+			username = sysCookieObj.get("username").toString();
+			grade = sysCookieObj.get("grade").toString();
+			auth = sysCookieObj.get("auth").toString();
+			ckey = sysCookieObj.get("ckey").toString();
+			loginAuthKey = sysCookieObj.get("loginAuthKey").toString();
 			
 			//req
-			String userip = Utils.getUserIP(req);
-			String useragent = req.getHeader("User-Agent");
-			String sessionid = req.getSession().getId();
+			userip = Utils.getUserIP(req);
+			useragent = req.getHeader("User-Agent");
+			sessionid = req.getSession().getId();
 			
 			//userid
 			Cookie cookieSavedID = Utils.getCookie(req, SavedCookieID);
 			String savedID = cookieSavedID!=null?cookieSavedID.getValue():"";
-			Cookie useridTokn = Utils.getCookie(req, serviceName+"_"+Utils.aes256.encode(userid));
-			String useridToknTest = Utils.getTokn(userid + userip + grade + auth);
 			
 			//로그인때 발급받은 Key
-			String loginAuthKey = authMapper.selectLoginAuthKey(param);
-			
-
-			//아이디_토큰(${server.name}_4T09R...)
-			String useridToknCookieName = serviceName+"_"+Utils.aes256.encode(userid).replaceAll("[^a-zA-Z]", "");
-			Cookie useridToknCookie = Utils.getCookie(req, useridToknCookieName);
-		
-
-			if(useridToknCookie==null) {
-				logger.info("--02");
-				SessionUtils.logout(req,  res);
-				return false;
-			}else {			
-				String useridToknCookieValue = useridToknCookie.getValue();
-				String useridToknCookieTest = Utils.getTokn(userid + userip + grade + auth);
-				if(!useridToknCookieValue.equals(useridToknCookieTest)) {
-					logger.info("--03");
-					SessionUtils.logout(req,  res);
-					return false;
-				}				
-			}
+			String dbLoginAuthKey = authMapper.selectLoginAuthKey(param);
 			
 			//기타 여러가지		
-			if(!userid.equals(savedID)) {
-				logger.info("--11");
+			if(!userid.equals(savedID)) {				
 				//result = false;
-			}
-			else if(useridTokn!=null && !useridTokn.getValue().equals(useridToknTest)) {
-				logger.info("--12 = {}", !useridTokn.equals(useridToknTest));
-				logger.info("--useridTokn:{} / useridToknTest:{}", useridTokn, useridToknTest);
+			}			
+			//cKey비교
+			else if(!ckey.equals(sysCookie_cKey)){				
+				logger.info("--11");
 				result = false;
 			}
 			else if(!sysCookieObj.get("userip").equals(userip)) {
@@ -122,7 +117,7 @@ public class SessionUtils {
 				logger.info("--15");
 				result = false;
 			}
-			else if(loginAuthKey==null) {
+			else if(dbLoginAuthKey==null || !loginAuthKey.equals(dbLoginAuthKey)){
 				logger.info("--17");
 				logger.info("--USER_LOGIN_INFO.loginAuthKey = {}", loginAuthKey);
 				result = false;
@@ -134,7 +129,27 @@ public class SessionUtils {
 			}
 		}
 		
-		if(!result) SessionUtils.removeAllCookies(req, res);//실패시 모든 쿠키 삭제
+		if(!result) {
+			SessionUtils.removeAllCookies(req, res);//실패시 모든 쿠키 삭제
+		}
+		//성공시 쿠키 재생성
+		else {
+			//logger.info("check > req.getRequestURI(): {}", req.getRequestURI().indexOf("/auth"));
+			if(req.getRequestURI().indexOf("/auth")<0) {//로그인 인증 접속은 제외
+				JtMap userCookie = new JtMap();
+				userCookie.put("userid", userid);
+				userCookie.put("username", username);
+				userCookie.put("grade", grade);
+				userCookie.put("auth", auth);
+				userCookie.put("userip", userip);
+				userCookie.put("useragent", useragent);
+				userCookie.put("sessionid", sessionid);
+				userCookie.put("loginAuthKey", loginAuthKey);
+				userCookie.put("ckey", UUID.randomUUID().toString().substring(0,8));	//랜덤문자 생성		
+				String sysCookie = SessionUtils.getAppCookieEnc(req, userCookie);
+				SessionUtils.setCookie(res, sysCookie);
+			}
+		}
 		
 		return result;
 	}
@@ -150,6 +165,7 @@ public class SessionUtils {
 		String username = userDbInfo.get("username").toString();
 		String grade = userDbInfo.get("grade").toString();
 		String auth = userDbInfo.get("auth").toString();
+		String ckey = userDbInfo.get("ckey").toString();
 		String userip = Utils.getUserIP(req);
 		String useragent = req.getHeader("User-Agent");
 		String sessionid = req.getSession().getId();
@@ -165,6 +181,7 @@ public class SessionUtils {
 		ck.put("useragent", useragent);
 		ck.put("sessionid", sessionid);
 		ck.put("loginAuthKey", loginAuthkey);
+		ck.put("ckey", ckey);
 		String ck_stringify = gson.toJson(ck);
 		String ck_enc = Utils.aes256.encode(ck_stringify);
 		
@@ -172,7 +189,7 @@ public class SessionUtils {
 		logger.info("cookie.encode = {}", ck_enc);
 		logger.info("cookie.decode = {}", Utils.aes256.decode(ck_enc));
 		
-		return ck_enc;
+		return ckey+"."+ck_enc;
 		
 	}
 	//쿠키정보 복호화 
@@ -180,7 +197,9 @@ public class SessionUtils {
 	public static Map<String,String> getAppCookieDec(HttpServletRequest req) throws Exception {
 		Cookie cookie = SessionUtils.getCookie(req);
 		if(cookie==null) return null;
-		String sysCookie = cookie.getValue();
+		String cookieValue = cookie.getValue();
+		//String sysCookie_ckey = cookieValue.sbustring(0,8); //미사용
+		String sysCookie = cookieValue.substring(9);
 		if(sysCookie==null) return null;
 		return gson.fromJson(Utils.aes256.decode(sysCookie), HashMap.class);
 	}

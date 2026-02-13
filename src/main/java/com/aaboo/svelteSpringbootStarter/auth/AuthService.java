@@ -1,6 +1,7 @@
 package com.aaboo.svelteSpringbootStarter.auth;
 
 import java.util.Map;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,14 +42,13 @@ public class AuthService {
 				
 		//로그인 기본 정보
 		String userip = Utils.getUserIP(req);
-		logger.info("로그인[{}]({}: {}) = {}, {}",  param.get("userid"), userip, req.getHeader("User-Agent"));
+		logger.info("로그인[{}]({}: {})",  param.get("userid"), userip, req.getHeader("User-Agent"));
 		
 		
 		//DB정보
 		JtMap userDbInfo = authMapper.selectUserCheck(param);
 		logger.info("login.userDbInfo: {}", gson.toJson(userDbInfo));
 		
-		//req:DB 정보비교
 		//실패
 		if(
 				userDbInfo==null
@@ -63,7 +63,7 @@ public class AuthService {
 			String auth = userDbInfo.get("auth").toString();
 			String useragent = req.getHeader("User-Agent");
 			String sessionid = req.getSession().getId();//서버 재시작하면 사용자 다시 로그인 해야함
-			//로그인 성공 DB정보 새로 업데이트;
+			//로그인 성공 DB정보 새로 업데이트(50자리)
 			String loginAuthKey = SessionUtils.getLoginAuthkey(userid, grade, auth, userip, sessionid, useragent);			
 			
 			
@@ -72,46 +72,47 @@ public class AuthService {
 			authMapper.updateUserLoginInfo(param);
 			
 			//기존 쿠키 삭제
-			SessionUtils.removeAllCookies(req, res);
+			SessionUtils.removeAllCookies(req, res);			
+			
+			//랜덤문자 생성(
+			String ckey = UUID.randomUUID().toString().split("-")[0];			
+			userDbInfo.put("ckey", ckey);
 			
 			//SysCookie 쿠키정보 갱신
 			String sysCookie = SessionUtils.getAppCookieEnc(req, userDbInfo);
 			SessionUtils.setCookie(res, sysCookie);
+			
 			//쿠키 아이디 저장
-			if(param.get("isSaveID")!=null){
+			if(param.get("isSaveID")!=null) {
 				//로그인
 				if(String.valueOf(param.get("isSaveID")).equals("true")) {
 					Utils.setCookie(res, serviceName+"_savedID", userid, false, 60*60*24*30); //30일
-				}else {
+				}else{
 					Utils.deleteCookie(req, res, serviceName+"_savedID");
 					Utils.deleteCookie(req, res, serviceName+"_isSaveID");
-				}
+				}				
 			}else{
 				//로그인재시도
 				Boolean isSaveID = false;
-				Cookie[] cookies = req.getCookie();
-				if(cookies!=null)){
-					for(Cookie cookie : cookies){
+				Cookie[] cookies = req.getCookies();
+				if(cookies!=null) {
+					for(Cookie cookie : cookies) {
 						String key = cookie.getName();
-						if(key.equals(serviceName) || key.startsWith(serviceName+"_isSaveID")){
-							isSaveID = true;
-							break;
+						if(key.equals(serviceName) || key.startsWith(serviceName+"_")) {
+							if(key.equals(serviceName+"_savedID") && key.equals(serviceName+"_isSaveID")) {
+								isSaveID = true;
+								break;
+							}
 						}
 					}
-					if(isSaveID){
-						int limitUpdate = 60*60*24*30; //30일
-						Utils.setCookie(res, serviceName+"_isSaveID", "true", limitUpdate);
-						Utils.setCookie(res, serviceName+"_savedID", userid, limitUpdate);
-					}
+				}
+				if(isSaveID) {
+					int limitUpdate = 60*60*24*30;
+					Utils.setCookie(res, serviceName+"_isSaveID", "true", false, limitUpdate); //30일
+					Utils.setCookie(res, serviceName+"_savedID", userid, false, limitUpdate); //30일
 				}
 			}
-			//아이디_토큰 저장
-			String useridToknCookieName = serviceName+"_"+Utils.aes256.encode(userid).replaceAll("[^a-zA-Z]", "");
-			Utils.setCookie(res, useridToknCookieName, Utils.getTokn(userid + Utils.getUserIP(req) + grade + auth), true);
-			//Utils.setCookie(res, useridToknCookieName, Utils.getTokn(userid + Utils.getUserIP() + grade + auth), true);
 		}	
-		
-		//String result = "Login";
 		
 		return Response.ok();
 	}

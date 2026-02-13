@@ -20,15 +20,15 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 	</properties>
 	
-	<!-- Nexus Repository 주소 설정 -->
+	<!-- Nexus Repository 주소 설정
 	<repositories>
 		<repository>
 			<id>NEXUS</id>
 			<url>http://192.168.7.90:8081/nexus/content/groups/public/</url>
 		</repository>
-	</repositories>
+	</repositories> -->
 
-	<!-- Nexus Plugin Repository 주소 설정 -->
+	<!-- Nexus Plugin Repository 주소 설정
 	<pluginRepositories>
 		<pluginRepository>
 			<id>MAVEN</id>
@@ -47,7 +47,7 @@
 			<id>nexus-snapshots</id>
 			<url>http://192.168.7.90:8081/nexus/content/repositories/snapshots/</url>
 		</snapshotRepository>
-	</distributionManagement>
+	</distributionManagement> -->
 	
 	<dependencies>
 		<dependency>
