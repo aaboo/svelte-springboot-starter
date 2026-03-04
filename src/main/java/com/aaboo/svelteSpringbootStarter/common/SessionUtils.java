@@ -65,7 +65,7 @@ public class SessionUtils {
 		if(cookie!=null) {
 			String cookieValue = cookie.getValue();
 			String sysCookie_cKey = cookieValue.substring(0,8);
-			String sysCookie = cookieValue.substring(9);
+			String sysCookie = cookieValue.substring(8);
 			
 			//logger.info("cookie check = {}", sysCookie);		
 			if(sysCookie==null) {
@@ -189,7 +189,7 @@ public class SessionUtils {
 		logger.info("cookie.encode = {}", ck_enc);
 		logger.info("cookie.decode = {}", Utils.aes256.decode(ck_enc));
 		
-		return ckey+"."+ck_enc;
+		return ckey + ck_enc;
 		
 	}
 	//쿠키정보 복호화 
@@ -199,7 +199,7 @@ public class SessionUtils {
 		if(cookie==null) return null;
 		String cookieValue = cookie.getValue();
 		//String sysCookie_ckey = cookieValue.sbustring(0,8); //미사용
-		String sysCookie = cookieValue.substring(9);
+		String sysCookie = cookieValue.substring(8);
 		if(sysCookie==null) return null;
 		return gson.fromJson(Utils.aes256.decode(sysCookie), HashMap.class);
 	}

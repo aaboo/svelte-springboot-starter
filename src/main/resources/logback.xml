@@ -7,7 +7,8 @@
 	<appender name="console" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <!--<Pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%13F:%L] %c:%M:%L %m%n</Pattern>-->
-            <Pattern>%d{yyyy-MM-dd HH:mm:ss} %highlight(%-5level)[%c %cyan(%13F):%M:%L] %m%n</Pattern>
+            <!-- <Pattern>%d{yyyy-MM-dd HH:mm:ss} %highlight(%-5level)[%c %cyan(%13F):%M:%L] %m%n</Pattern> -->
+            <Pattern>%d{yyyy-MM-dd HH:mm:ss} %highlight(%-5level)[%cyan(%13F):%M:%L] %m%n</Pattern>
         </encoder>
 		<filter class="com.aaboo.svelteSpringbootStarter.LogbackFilter"/>
     </appender>
