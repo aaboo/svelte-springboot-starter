@@ -237,6 +237,88 @@ public class Utils {
             message = pageLimit + "건 초과 자료는 엑셀을 다운받아 사용해 주세요.(총 " + totalCount + "건)";
         }
         return message;
-    }
+    }	
+	/*
+	* @Description: 자연수를 한글/중국어/위조방지 문자로 변환
+	* @Param : Number(변환할숫자), String(언어선택:korean, chinese, bank, money)
+	* @Return : String
+	* @Add mention: converNum2StrMaker와 함께 쓰임
+	*/
+	public static String convertNum2Str(String _num, String _type){
+		Gson gson = new Gson();
+		if(_num==null || _num.equals("")) return "";
+		_type = (_type == null) ? "korean" : _type;
+		String num_ = _num.replaceAll("^0-9.-", "");
+		String[] num = num_.split("\\.");
+		String num1 = num[0];
+		Boolean isMinus = num1.indexOf("-")==0;
+		num1 = num1.replaceAll("^0-9", "");
+		Boolean isFloat = num.length==2;
+		String num2 = isFloat?num[1]:"";
+		
+		String result = (isMinus?"-": "")
+				+ converNum2StrMaker(num1, _type, false)
+				+ (isFloat?"."+ converNum2StrMaker(num2, _type, true) : "");
+		return result;
+	}
+	private static String converNum2StrMaker(String _num, String _type, Boolean _isFloat){
+		String result = "";
+		String[] arrLv1 = null;
+		String[] arrLv2 = null;
+		String[] arrLv3 = null;
+		
+		//한글
+		if(_type.equalsIgnoreCase("KOREAN")){
+			arrLv1 = new String[]{"","일","이","삼","사","오","육","칠","팔","구"};
+			arrLv2 = new String[]{"","십","백","천"};
+			arrLv3 = new String[]{"","만","억","조","경","해","시","양","구","간","정","재","극","항하사","아승지","나유타","불가사의","무량대수"};
+		}
+		//한자
+		else if(_type.equalsIgnoreCase("CHINESE")){
+			arrLv1 = new String[]{"","一","二","三","四","五","六","七","八","九"};
+			arrLv2 = new String[]{"","十","百","千"};
+			arrLv3 = new String[]{"","萬","億","兆","京","垓","示","穰","溝","澗","正","載","極","恒河沙","阿僧祗","那由他","不可思議","無量大數"};
+		}
+		//위조방지
+		else if(_type.equalsIgnoreCase("BANK")){
+			arrLv1 = new String[]{"","壹","貳","蔘","肆","伍","陸","漆","捌","玖"};
+			arrLv2 = new String[]{"","拾","伯","阡"};
+			arrLv3 = new String[]{"","萬","億","兆","京","垓","示","穰","溝","澗","正","載","極","恒河沙","阿僧祗","那由他","不可思議","無量大數"};
+		}
+
+		int len = _num.length();
+		if(_type.equalsIgnoreCase("MONEY")){
+			for(int i=len; i>=1; i--){
+				//큰단위(만억조경해...)를 구분짓는 것 4의 배수자리마다
+				if((len-i) >= 3 && ((len-i)%3) == 0){    
+					result = "," +result;
+				}
+				result = _num.substring(i-1,i) + result; 
+			}
+		}else{
+			for(int i=len; i>=1; i--){
+				if(!_isFloat){
+					//큰단위(만억조경해...)를 구분짓는 것 4의 배수자리마다
+					if((len-i) >= 4 && ((len-i)%4) == 0){    
+						result = arrLv3[(len-i)/4] + " " +result;
+					}  
+					//작은단위(일십백천)을 구분짓는 것 4단어 주기
+					if(!_num.substring((i-1),i).equals("0")){
+						result = (len==1) ? "" : arrLv2[(len-i)%4] + result;  
+					}
+				}
+				//통상 일 자리수 숫자를 제외한 작은단위 앞의 1은 생략
+				//(처음 시작하는 1은 제외)  
+				if((len-i) > 0){ 
+					if(!_num.substring((i-1),i).equals("1") ||  i==1){
+						result = arrLv1[Integer.parseInt(_num.substring(i-1,i))] + result; 
+					}  
+				}else{
+					result = arrLv1[Integer.parseInt(_num.substring(i-1,i))] + result; 
+				}
+			}
+		}
+		return result;
+	}
 
 }
